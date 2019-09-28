@@ -3,9 +3,9 @@ from sklearn.datasets import make_moons
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 import json
-from Network import network
+from Network import Network
 import os
-## get Dataset rom repository
+## get Dataset from repository
 np.random.seed(0)
 X, Y = make_moons(500, noise=0.2)
 
@@ -23,8 +23,8 @@ X_train, X_test, Y_train, Y_test = train_test_split(X,Y,
                                                     test_size = test_size,
                                                     random_state = random_state)
 tf.reset_default_graph()
-net = network( X_train, Y_train,json_structure_dir)
-cost = network.train(net, n_iters)
+net = Network( X_train, Y_train,json_structure_dir)
+cost = Network.train(net, n_iters)
 pred_prob = net.predict(X_test)
 y_hat = np.where(pred_prob < 0.5, 0, 1)
 acc = 0
