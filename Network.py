@@ -1,32 +1,42 @@
 import os
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 from tensorflow.contrib.layers import fully_connected
 import json
-
+import numpy as np
 
 class Network(object):
-    def __init__(self, x, y, jsonStructureDir):
 
-        with open(jsonStructureDir, "r") as file:
-            netData = file.read().replace("\n", "")
-        netDataDict = json.loads(netData)
-        self.hiddenActivation = netDataDict["hidden_activation"]
-        self.outputActivation = netDataDict["output_activation"]
-        self.nameOptimizer = netDataDict["optimizer"]
-        self.networkName = netDataDict["network_name"]
-        self.sess = tf.Session()
+    def __init__(self, jsonStructureDir, x = [], y = [], XStandAlone = [],YStandAlone = []):
+        self.getJsonData(jsonStructureDir)
+        self.processDimensions(x,y,XStandAlone,YStandAlone)
+        self.buildNetwork()
+
+    def processDimensions(self,x,y,X,Y):
         self.xInput = x
         self.yInput = y
-        self.nOutputDim = self.yInput.shape[1]
-        self.nInputs = x.shape[0]
-        self.nInputDim = x.shape[1]
+        if x == []:
+            self.xInput, self.xTest, self.yInput, self.yTest = train_test_split(X, Y, test_size=self.testSize,
+                                                                      random_state=self.randomState)
+        if (len(self.yInput.shape) > 1):
+            self.nOutputDim = self.yInput.shape[1]
+        else:
+            self.nOutputDim = 1
+            self.yInput = self.yInput.reshape(-1, 1)
+        self.nInputs = self.xInput.shape[0]
+        self.nInputDim = self.xInput.shape[1]
         self.nOutput = self.yInput.shape[0]
-        self.learningRate = netDataDict["learning_rate"]
-        self.nHidden = netDataDict["n_hidden_list"]
         self.nLayer = len(self.nHidden)
+
+    def buildNetwork (self):
+        tf.reset_default_graph()
+        self.sess = tf.Session()
         self.trainableVar = []
+        # TODO self.trainableVar deve diventare un dizionario in cui la chiave è il numero del layer
         self.trainableVar.append(tf.trainable_variables())
-        self.xPlaceholder, self.yPlaceholder, self.logits, self.cost = self.buildLayer(self.nOutputDim, self.nLayer, self.hiddenActivation, self.outputActivation)
+        self.xPlaceholder, self.yPlaceholder, self.logits, self.cost = self.buildLayer(self.nOutputDim, self.nLayer,
+                                                                                       self.hiddenActivation,
+                                                                                       self.outputActivation)
         self.trainableVar = tf.trainable_variables()
         if self.nameOptimizer == "AdamOptimizer" or self.nameOptimizer == "":
             self.optimizer = \
@@ -40,26 +50,42 @@ class Network(object):
         if self.nameOptimizer == "GradientDescentOptimizer":
             self.optimizer = \
                 tf.compat.v1.train.GradientDescentOptimizer(self.learningRate)
+        # NB basta modificare il contenuto di self.traibleVar, recuperando matrici e bias da tf.trainable_variables(),
+        # per scegliere se freezare dei layer. Di default nessun layer è freezato
         self.trainOp = self.optimizer.minimize(self.cost, var_list=self.trainableVar)
 
-    def buildLayer(self, nOutput, nLayer=1, hiddenActivation="", outputActivation="sigmoid"):
+    def getJsonData(self,jsonStructureDir):
+        with open(jsonStructureDir, "r") as file:
+            netData = file.read().replace("\n", "")
+        netDataDict = json.loads(netData)
+        self.hiddenActivation = netDataDict["hidden_activation"]
+        self.outputActivation = netDataDict["output_activation"]
+        self.nameOptimizer = netDataDict["optimizer"]
+        self.networkName = netDataDict["network_name"]
+        self.testSize = netDataDict["test_size"]
+        self.randomState = netDataDict["random_state"]
+        self.nIters = netDataDict["n_iters"]
+        self.learningRate = netDataDict["learning_rate"]
+        self.nHidden = netDataDict["n_hidden_list"]
 
-        hiddenActivationFunction = tf.nn.elu
+    def buildLayer(self, nOutput, nLayer=1, hiddenActivation="Relu", outputActivation="sigmoid"):
         print("Now im building layers")
         initializer = tf.contrib.layers.xavier_initializer()
         xPlaceholder = tf.compat.v1.placeholder(tf.float32, [None, self.nInputDim], name="input")
         yPlaceholder = tf.compat.v1.placeholder(tf.float32, [None, nOutput], name="y")
-        layer = []
+        self.layer = []
         if hiddenActivation == "sigmoid":
             hiddenActivationFunction = tf.nn.sigmoid
-        if hiddenActivation == "softmax":
+        elif hiddenActivation == "softmax":
             hiddenActivationFunction = tf.nn.softmax
-        layer.insert(0, fully_connected(xPlaceholder, self.nHidden.__getitem__(0), activation_fn=hiddenActivationFunction,
+        else :
+            hiddenActivationFunction = tf.nn.elu
+        self.layer.insert(0, fully_connected(xPlaceholder, self.nHidden.__getitem__(0), activation_fn=hiddenActivationFunction,
                                   weights_initializer=initializer))
         print("layer: 1, numero_nodi: " + str(self.nHidden.__getitem__(0)))
         for i in range(1, nLayer):
             print("layer: " + str(i + 1) + ", numero_nodi: " + str(self.nHidden.__getitem__(i)))
-            layer.insert(i, fully_connected(layer.__getitem__(i - 1), self.nHidden.__getitem__(i),
+            self.layer.insert(i, fully_connected(self.layer.__getitem__(i - 1), self.nHidden.__getitem__(i),
                                             activation_fn=hiddenActivationFunction, weights_initializer=initializer))
         print(tf.trainable_variables())
         if outputActivation == "relu":
@@ -68,7 +94,7 @@ class Network(object):
             outputActivationFunction = tf.nn.softmax
         if outputActivation == "sigmoid" or outputActivation == "":
             outputActivationFunction = tf.nn.sigmoid
-        logits = fully_connected(layer.__getitem__(nLayer - 1),
+        logits = fully_connected(self.layer.__getitem__(nLayer - 1),
                                  self.nOutputDim,
                                  activation_fn=outputActivationFunction,
                                  weights_initializer=initializer)
@@ -84,82 +110,58 @@ class Network(object):
                                              self.yPlaceholder: self.yInput})
         return cost
 
-    def predict(self, xTest):
+    def predict(self, xTest = []):
+        if xTest == [] :
+            xTest = self.xTest
         pred = self.sess.run([self.logits],
                              feed_dict={self.xPlaceholder: xTest})[0]
         return pred
 
-    def train(model, nIters=1000):
+    def train(model, nIters = 0):
+        if nIters == 0 :
+            nIters = model.nIters
         print("Im learning, wait for " + str(nIters) + " iterates")
         model.sess.run(tf.global_variables_initializer())
         cost = []
         for i in range(nIters):
-            print("iterate" + str(i))
             actualCost = model.trainForOneIter()
-            print("cost: " + str(actualCost))
+            print("Iterate: " + str(i) +" Cost: " + str(actualCost))
             cost.append(actualCost)
         return cost
 
-    def summary(model, acc, cost):
-        nInput = model.nInputDim
-        nOutput = model.nOutputDim
-        nHiddenLayer = model.nHidden
-        alphabet = ["A", "B", "C", "D", "E", "F", "G", "H"]
-        layerspace = max(nHiddenLayer) / 3
-        nLayer = nHiddenLayer.__len__()
-        file = open("copy.tex", "w")
-        file.write("\documentclass[article]{report}\n"
-                   + "\\usepackage{tikz}\n" + "\\begin{document}\n"
-                   + "\\author{MLP Solinas}\n" + "\\title{"
-                   + model.networkName + "}\n" + "\maketitle\n"
-                   + "\pagestyle{empty}\n" + "\def\layersep{"
-                   + str(layerspace) + "}\n" + "\\newpage\n"
-                   + "\section{Structure and data}\n"
-                   + "\\begin{tikzpicture}[shorten >=1pt,->,draw=black!50, node distance=\layersep]\n"
-                   + "\centering\n"
-                   + "\t\\tikzstyle{every pin edge}=[<-,shorten <=1pt]\n"
+    def acc(self, yHat, yTest = []):
+        if yTest == []:
+            yTest = self.yTest
+        acc = 0
+        if (len(yTest.shape) > 1):
+            for i in range(0, yHat.shape[0]):
+                match = 1
+                match = (yHat[i][0] == yTest[i][0])
+                for j in range(1, yHat.shape[1]):
+                    match = (yHat[i][j] == yTest[i][j]) & match
+                if (match):
+                    acc += 1
+            acc = acc / yHat.shape[0]
+        else:
+            acc = np.sum(yTest.reshape(-1, 1) == yHat) / len(yTest)
+        return acc
 
-                   + "\t\\tikzstyle{neuron}=[circle,fill=black!25,minimum size=17pt,inner sep=0pt]\n"
+    def getTrainableVar(self):
+        #Restituisce le variabili allenabili
+        return self.trainableVar
 
-                   + "\t\\tikzstyle{input neuron}=[neuron, fill=green!50];\n"
+    def saveNetwork(self,folder = "\\netTest_2"):
+        print(tf.trainable_variables())
+        for trainableVar in tf.trainable_variables() :
+            print(self.sess.run( trainableVar))
 
-                   + "\t\\tikzstyle{output neuron}=[neuron, fill=red!50];\n"
-
-                   + "\t\\tikzstyle{hidden neuron}=[neuron, fill=blue!50];\n"
-
-                   + "\t\\tikzstyle{annot} = [text width=4em, text centered]\n"
-                   )
-        file.write("\t\\foreach \\name / \y in {1,...," + str(nInput)
-                   + "}\n"
-                   + "\t\t\\node[input neuron,pin = {[pin edge={<-}]left:}] (I-\\name) at (0,-\y) {};\n"
-                   )
-        for i in range(0, nLayer):
-            if i == 0:
-                diff = nHiddenLayer.__getitem__(i) - nInput
-            else:
-                diff += nHiddenLayer.__getitem__(i) \
-                        - nHiddenLayer.__getitem__(i - 1)
-            file.write(
-                "\t\\foreach \\name / \\y in {1,...,{0}}\n\t\t \\path[yshift={1}cm]\n\t\t\tnode[hidden neuron] ({2}-\\name) at ({3}*\\layersep  ,-\\y cm) {};\n".format(
-                    str(nHiddenLayer.__getitem__(i)), str(diff / 2), alphabet.__getitem__(i), str(i + 1)))
-        diff += nOutput - nHiddenLayer.__getitem__(nLayer - 1)
-        file.write(
-            "\t\\foreach \\name / \\y in {1,...,{0}}\n\t\t \\path[yshift={1}cm]\n\t\t\tnode[output neuron] (O-\\name) at ({2}*\\layersep  ,-\\y cm - \\layersep) {};\n".format(
-                str(nOutput), str(diff / 2), str(nLayer + 1)))
-        file.write(
-            "\t\\foreach \\source in {1,...,{0}}\n\t\t\\foreach \\dest in {1,...,{1}}\n\t\t\t\\path (I-\\source) edge ({2}-\\dest );\n".format(
-                str(nInput), str(nHiddenLayer.__getitem__(0)), str(alphabet.__getitem__(0))))
-        for i in range(1, nLayer):
-            file.write(
-                "\t\\foreach \\source in {1,...,{0}}\n\t\t\\foreach \\dest in {1,...,{1}}\n\t\t\t\\path ({2}-\\source) edge ({3}-\\dest );\n".format(
-                    str(nHiddenLayer.__getitem__(i - 1)), str(nHiddenLayer.__getitem__(i)),
-                    str(alphabet.__getitem__(i - 1)), alphabet.__getitem__(i)))
-        file.write(
-            "\\foreach \\source in {1,...,{0}}\n\t\\foreach \\dest in {1,...,{1}}\n\t\t\\path ({2}-\\source) edge (O-\\dest );\n".format(
-                str(nHiddenLayer.__getitem__(nLayer - 1)), str(nOutput), str(alphabet.__getitem__(nLayer - 1))))
-        file.write("\section{Train}\n")
-
-        file.write("\end{tikzpicture}\n" + "\end{document}\n")
-        file.close()
-        os.system("pdflatex copy.tex")
+    def freezTrainableVar(self, layer):
+        # TODO Questo metodo freeza un layer, rimuovendo pesi e bias dalle variabiali allenabili
+        # ci si riferirà alle variabili tramite il numero del layer (crescente dall'input all'output)
+        pass
+    def unfreezTrainableVar(self):
+        # TODO Riaggiunge a self.trainableVar i pesi e i bias
         return 0
+
+
+
