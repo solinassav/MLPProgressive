@@ -1,12 +1,12 @@
 import numpy as np
-from sklearn.datasets import make_moons
+from sklearn.datasets import load_iris
 from Network import Network
 import os
 from Trainer import Trainer
 ## prendo un dataset di test dalla repository di sklearn
 
 np.random.seed(0)
-X, Y = make_moons(5000, noise= 0.2)
+X, Y = load_iris(10000)
 ## Ricordare di cambiare i path
 ROOT_DIR = os.path.abspath(os.curdir)
 jsonStructureDir = ROOT_DIR + "\structure.txt"
@@ -23,7 +23,7 @@ acc = netTest_1.acc(yHat)
 print("Test Accuracy %.2f" % acc)
 
 
-# esempio di test classe Trainer + Network (simple train) (file "structure.txt"
+# esempio di test classe Trainer + Network (simple train) (file "structure.txt" +train.txt)
 
 trainer = Trainer(jsonTrainDir)
 xTrain, xTest, yTrain, yTest = trainer.split(X = X, Y = Y)
