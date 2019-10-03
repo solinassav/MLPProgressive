@@ -1,16 +1,19 @@
 import os
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import OneHotEncoder
 from tensorflow.contrib.layers import fully_connected
 import json
 import numpy as np
 
 class Network(object):
 
-    def __init__(self, jsonStructureDir, x = [], y = [], XStandAlone = [],YStandAlone = []):
+
+    def __init__(self, jsonStructureDir, x = [], y = [],  XStandAlone = [],YStandAlone = []):
         self.getJsonData(jsonStructureDir)
         self.processDimensions(x,y,XStandAlone,YStandAlone)
         self.buildNetwork()
+
 
     def processDimensions(self,x,y,X,Y):
         self.xInput = x
@@ -18,6 +21,8 @@ class Network(object):
         if x == []:
             self.xInput, self.xTest, self.yInput, self.yTest = train_test_split(X, Y, test_size=self.testSize,
                                                                       random_state=self.randomState)
+            self.yTest = self.label_encoding(self.yTest)
+        self.yInput = self.label_encoding(self.yInput)
         if (len(self.yInput.shape) > 1):
             self.nOutputDim = self.yInput.shape[1]
         else:
@@ -28,15 +33,14 @@ class Network(object):
         self.nOutput = self.yInput.shape[0]
         self.nLayer = len(self.nHidden)
 
+
     def buildNetwork (self):
         tf.reset_default_graph()
         self.sess = tf.Session()
         self.trainableVar = []
         # TODO self.trainableVar deve diventare un dizionario in cui la chiave è il numero del layer
         self.trainableVar.append(tf.trainable_variables())
-        self.xPlaceholder, self.yPlaceholder, self.logits, self.cost = self.buildLayer(self.nOutputDim, self.nLayer,
-                                                                                       self.hiddenActivation,
-                                                                                       self.outputActivation)
+        self.xPlaceholder, self.yPlaceholder, self.logits, self.cost = self.buildLayer(self.nOutputDim, self.nLayer, self.hiddenActivation, self.outputActivation)
         self.trainableVar = tf.trainable_variables()
         if self.nameOptimizer == "AdamOptimizer" or self.nameOptimizer == "":
             self.optimizer = \
@@ -54,6 +58,7 @@ class Network(object):
         # per scegliere se freezare dei layer. Di default nessun layer è freezato
         self.trainOp = self.optimizer.minimize(self.cost, var_list=self.trainableVar)
 
+
     def getJsonData(self,jsonStructureDir):
         with open(jsonStructureDir, "r") as file:
             netData = file.read().replace("\n", "")
@@ -67,6 +72,7 @@ class Network(object):
         self.nIters = netDataDict["n_iters"]
         self.learningRate = netDataDict["learning_rate"]
         self.nHidden = netDataDict["n_hidden_list"]
+
 
     def buildLayer(self, nOutput, nLayer=1, hiddenActivation="Relu", outputActivation="sigmoid"):
         print("Now im building layers")
@@ -117,7 +123,7 @@ class Network(object):
                              feed_dict={self.xPlaceholder: xTest})[0]
         return pred
 
-    def train(model, nIters = 0):
+    def train(model, nIters = 0, nConvergence = 50):
         if nIters == 0 :
             nIters = model.nIters
         print("Im learning, wait for " + str(nIters) + " iterates")
@@ -127,7 +133,17 @@ class Network(object):
             actualCost = model.trainForOneIter()
             print("Iterate: " + str(i) +" Cost: " + str(actualCost))
             cost.append(actualCost)
+            if (model.isConverged(cost, nConvergence)):
+                break
         return cost
+    def isConverged(self, array, n = 10):
+        if(array.__len__()<n):
+            isConverged = 0
+        else:
+            isConverged = 1
+            for i in range(2,n):
+                isConverged = isConverged & (array[-i] == array[-i+1])
+        return isConverged
 
     def acc(self, yHat, yTest = []):
         if yTest == []:
@@ -147,12 +163,11 @@ class Network(object):
         return acc
 
     def getTrainableVar(self):
-        #Restituisce le variabili allenabili
         return self.trainableVar
 
     def saveNetwork(self,folder = "\\netTest_2"):
         print(tf.trainable_variables())
-        for trainableVar in tf.trainable_variables() :
+        for trainableVar in self.trainableVar:
             print(self.sess.run( trainableVar))
 
     def freezTrainableVar(self, layer):
@@ -163,5 +178,8 @@ class Network(object):
         # TODO Riaggiunge a self.trainableVar i pesi e i bias
         return 0
 
-
+    def label_encoding(self,array):
+        oneHot = OneHotEncoder(categories='auto')
+        oneHot.fit_transform(array.reshape(-1, 1))
+        return oneHot.transform(array.reshape(-1, 1)).toarray()
 

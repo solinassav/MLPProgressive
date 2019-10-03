@@ -34,7 +34,7 @@ class Trainer(object):
         Network.train(net, nIters= self.nIters)
         predProb = net.predict(self.xTest)
         yHat = np.where(predProb < 0.5, 0, 1)
-        acc = net.acc(yHat, self.yTest)
+        acc = net.acc(yHat, net.label_encoding(self.yTest))
         print("Test Accuracy %.2f" % acc)
 
     #Metodo progressiveTrain.txt
@@ -47,6 +47,6 @@ class Trainer(object):
             Network.train(net,nIters=train["n_iters"])
         predProb = net.predict(self.xTest)
         yHat = np.where(predProb < 0.5, 0, 1)
-        acc = net.acc(yHat, self.yTest)
+        acc = net.acc(yHat, net.label_encoding(self.yTest))
         print("Test Accuracy %.2f" % acc)
         pass

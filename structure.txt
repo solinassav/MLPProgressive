@@ -3,11 +3,10 @@
 "network_name":"TestNetwork",
 "random_state":73,
 "n_hidden_list":[
-5,
-5
+5,4
 ],
-"learning_rate":1e-2,
-"n_iters":1000,
+"learning_rate":1e-5,
+"n_iters":35000,
 "hidden_activation":"relu",
 "output_activation":"sigmoid",
 "optimizer":"AdamOptimizer"
