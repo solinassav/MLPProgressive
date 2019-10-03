@@ -86,13 +86,11 @@ class Network(object):
             hiddenActivationFunction = tf.nn.softmax
         else :
             hiddenActivationFunction = tf.nn.elu
-        self.layer.insert(0, fully_connected(xPlaceholder, self.nHidden.__getitem__(0), activation_fn=hiddenActivationFunction,
-                                  weights_initializer=initializer))
+        self.layer.insert(0, fully_connected(xPlaceholder, self.nHidden.__getitem__(0), activation_fn=hiddenActivationFunction, weights_initializer=initializer))
         print("layer: 1, numero_nodi: " + str(self.nHidden.__getitem__(0)))
         for i in range(1, nLayer):
             print("layer: " + str(i + 1) + ", numero_nodi: " + str(self.nHidden.__getitem__(i)))
-            self.layer.insert(i, fully_connected(self.layer.__getitem__(i - 1), self.nHidden.__getitem__(i),
-                                            activation_fn=hiddenActivationFunction, weights_initializer=initializer))
+            self.layer.insert(i, fully_connected(self.layer.__getitem__(i - 1), self.nHidden.__getitem__(i), activation_fn=hiddenActivationFunction, weights_initializer=initializer))
         print(tf.trainable_variables())
         if outputActivation == "relu":
             outputActivationFunction = tf.nn.elu
@@ -100,21 +98,17 @@ class Network(object):
             outputActivationFunction = tf.nn.softmax
         if outputActivation == "sigmoid" or outputActivation == "":
             outputActivationFunction = tf.nn.sigmoid
-        logits = fully_connected(self.layer.__getitem__(nLayer - 1),
-                                 self.nOutputDim,
-                                 activation_fn=outputActivationFunction,
-                                 weights_initializer=initializer)
+        logits = fully_connected(self.layer.__getitem__(nLayer - 1), self.nOutputDim, activation_fn=outputActivationFunction, weights_initializer=initializer)
 
-        loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=yPlaceholder,
-                                                       logits=logits)
+        loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=yPlaceholder, logits=logits)
         cost = tf.reduce_mean(loss)
         return (xPlaceholder, yPlaceholder, logits, cost)
 
+
     def trainForOneIter(self):
-        (_, cost) = self.sess.run([self.trainOp, self.cost],
-                                  feed_dict={self.xPlaceholder: self.xInput,
-                                             self.yPlaceholder: self.yInput})
+        (_, cost) = self.sess.run([self.trainOp, self.cost], feed_dict={self.xPlaceholder: self.xInput, self.yPlaceholder: self.yInput})
         return cost
+
 
     def predict(self, xTest = []):
         if xTest == [] :
@@ -123,9 +117,12 @@ class Network(object):
                              feed_dict={self.xPlaceholder: xTest})[0]
         return pred
 
-    def train(model, nIters = 0, nConvergence = 50):
+
+    def train(model, nIters = 0, nConvergence = 0):
         if nIters == 0 :
             nIters = model.nIters
+        if (nConvergence == 0):
+            nConvergence = model.nIters
         print("Im learning, wait for " + str(nIters) + " iterates")
         model.sess.run(tf.global_variables_initializer())
         cost = []
@@ -136,7 +133,9 @@ class Network(object):
             if (model.isConverged(cost, nConvergence)):
                 break
         return cost
-    def isConverged(self, array, n = 10):
+
+
+    def isConverged(self, array, n = 100):
         if(array.__len__()<n):
             isConverged = 0
         else:
@@ -144,6 +143,7 @@ class Network(object):
             for i in range(2,n):
                 isConverged = isConverged & (array[-i] == array[-i+1])
         return isConverged
+
 
     def acc(self, yHat, yTest = []):
         if yTest == []:
@@ -162,24 +162,30 @@ class Network(object):
             acc = np.sum(yTest.reshape(-1, 1) == yHat) / len(yTest)
         return acc
 
+
     def getTrainableVar(self):
         return self.trainableVar
 
-    def saveNetwork(self,folder = "\\netTest_2"):
-        print(tf.trainable_variables())
-        for trainableVar in self.trainableVar:
-            print(self.sess.run( trainableVar))
-
-    def freezTrainableVar(self, layer):
-        # TODO Questo metodo freeza un layer, rimuovendo pesi e bias dalle variabiali allenabili
-        # ci si riferirà alle variabili tramite il numero del layer (crescente dall'input all'output)
-        pass
-    def unfreezTrainableVar(self):
-        # TODO Riaggiunge a self.trainableVar i pesi e i bias
-        return 0
 
     def label_encoding(self,array):
         oneHot = OneHotEncoder(categories='auto')
         oneHot.fit_transform(array.reshape(-1, 1))
         return oneHot.transform(array.reshape(-1, 1)).toarray()
 
+
+    def freezTrainableVar(self, layer):
+        # TODO Questo metodo freeza un layer, rimuovendo pesi e bias dalle variabiali allenabili
+        # ci si riferirà alle variabili tramite il numero del layer (crescente dall'input all'output)
+        pass
+
+
+    def unfreezTrainableVar(self):
+        # TODO Riaggiunge a self.trainableVar i pesi e i bias
+        pass
+
+
+    def saveNetwork(self,folder = "\\netTest_2"):
+        # TODO Fare in modo che il salvataggio avvenga davvero
+        print(tf.trainable_variables())
+        for trainableVar in self.trainableVar:
+            print(self.sess.run( trainableVar))

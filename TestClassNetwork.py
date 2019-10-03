@@ -1,19 +1,4 @@
-import numpy as np
-from sklearn.datasets import load_iris
-from Network import Network
-import os
-from Trainer import Trainer
-## prendo un dataset di test dalla repository di sklearn
-np.random.seed(0)
-X, Y = load_iris(10000)
-## Ricordare di cambiare i path
-ROOT_DIR = os.path.abspath(os.curdir)
-jsonStructureDir = ROOT_DIR + "\structure.txt"
-jsonTrainDir = ROOT_DIR + "\\train.txt"
-jsonProgressiveTrainDir = ROOT_DIR + "\\train.txt"
-
 #TODO: leggere note per il professore
-#Tutte le modalità di allenamento vengono interrotte se la rete converge
 #As-Is:
     #Ogni uscita corrisponde a un label, le uscite sono poste a 1 se la probabilità per quel label è maggiore di 0.5, a 0 diversamente.
     #In questo caso l'input può essere attribuito a più classi, a una classe o a nessuna classe
@@ -27,6 +12,26 @@ jsonProgressiveTrainDir = ROOT_DIR + "\\train.txt"
     #Entrambe le soluzioni sono già disponibili nel mia copia locale del codice, deve solo decidere come vuole usarle
     #Propongo un metodo predictReal che renda le uscite della rete (come numeri reali) e non una classificazione, in modo da dare
     # all'utente la possibilità di gestire la classificazione ignorando questi ponti
+
+
+
+import numpy as np
+from sklearn.datasets import load_iris
+from Network import Network
+import os
+from Trainer import Trainer
+
+
+## prendo un dataset di test dalla repository di sklearn
+np.random.seed(0)
+X, Y = load_iris(10000)
+
+
+## Ricordare di cambiare i path
+ROOT_DIR = os.path.abspath(os.curdir)
+jsonStructureDir = ROOT_DIR + "\structure.txt"
+jsonTrainDir = ROOT_DIR + "\\train.txt"
+jsonProgressiveTrainDir = ROOT_DIR + "\\train.txt"
 
 
 # esempio di test: classe Network stand-alone effettua solo un training di tutta la reta secondo le informazioni contenute nel json "structure.txt"
