@@ -212,53 +212,84 @@ class Network(object):
                 np.savetxt(directory + '/B'+str(i//2)+'.csv', self.sess.run( trainableVar), delimiter=",")
             i+=1
 
+    def getTensorFromFile(self, filePath):
+        return tf.convert_to_tensor(np.loadtxt(open(filePath, "rb"), delimiter=","), dtype=tf.float32)
+
+    def getPathForNetwork(self):
+        return "Networks/{}/WB/".format(self.networkName)
+
+    def getPathForWeight(self, fileIndex):
+        return "{}W{}.csv".format(self.getPathForNetwork(), fileIndex)
+
+    def getPathForBias(self, fileIndex):
+        return "{}B{}.csv".format(self.getPathForNetwork(), fileIndex)
+
+    def getSigmoidForIndex(self, index):
+        weight = self.weights.__getitem__(index)
+        bias = self.biasses.__getitem__(index)
+        layer = self.layer.__getitem__(index - 1) if index != 0 else self.xPlaceholder
+        sigmoid = tf.nn.sigmoid(tf.math.add(tf.matmul(layer, weight), bias))
+        return sigmoid
+
+    def getSoftmaxForIndex(self, index):
+        weight = self.weights.__getitem__(index)
+        bias = self.biasses.__getitem__(index)
+        layer = self.layer.__getitem__(index - 1) if index != 0 else self.xPlaceholder
+        softmax = tf.nn.softmax(tf.math.add(tf.matmul(layer, weight), bias))
+        return softmax
+
+    def getReluLayerForIndex(self, index):
+        weight = self.weights.__getitem__(index)
+        bias = self.biasses.__getitem__(index)
+        layer = self.layer.__getitem__(index - 1) if index != 0 else self.xPlaceholder
+        reluLayer = tf.compat.v1.nn.relu_layer(layer, weight, bias)
+        return reluLayer
+
+    def getEluLayerForIndex(self, index):
+        weight = self.weights.__getitem__(index)
+        bias = self.biasses.__getitem__(index)
+        layer = self.layer.__getitem__(index - 1) if index != 0 else self.xPlaceholder
+        eluLayer = tf.nn.elu(tf.math.add(tf.matmul(layer, weight), bias))
+        return eluLayer
 
     def buildFromRepository(self):
-        self.weights = []
-        self.biasses = []
-        self.layer = []
-        self.sess = tf.Session()
-        i = 0
-        directory = "Networks/" + str(self.networkName) + "/WB" + "/W" + str(i) + ".csv"
-        while os.path.exists(directory):
-            self.weights.append(tf.convert_to_tensor(np.loadtxt(open(directory, "rb"), delimiter=","), dtype=tf.float32))
-            directory = "Networks/" + str(self.networkName) + "/WB" + "/B" + str(i) + ".csv"
-            self.biasses.append(tf.convert_to_tensor(np.loadtxt(open(directory, "rb"), delimiter=","), dtype=tf.float32))
-            i += 1
-            directory = "Networks/" + str(self.networkName) + "/WB" + "/W" + str(i) + ".csv"
 
-        self.xPlaceholder = tf.compat.v1.placeholder(tf.float32, [None, self.weights.__getitem__(0).shape[0]], name="input")
+        self.weights, self.biasses, self.layer = [], [], []
+        self.sess = tf.Session()
+
         i = 0
-        while i < self.weights.__len__() - 1:
-            if self.hiddenActivation == "sigmoid":
-                if i == 0:
-                    self.layer.append(tf.nn.sigmoid(
-                        tf.math.add(tf.matmul(self.xPlaceholder, self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
-                else:
-                    self.layer.append(tf.nn.sigmoid(
-                        tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
-            elif self.hiddenActivation == "softmax":
-                if i == 0:
-                    self.layer.append(tf.nn.softmax(
-                        tf.math.add(tf.matmul(self.xPlaceholder, self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
-                else:
-                    self.layer.append(tf.nn.softmax(
-                        tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
-            else:
-                if i == 0:
-                    self.layer.append(tf.compat.v1.nn.relu_layer(self.xPlaceholder,self.weights.__getitem__(i),self.biasses.__getitem__(i)))
-                else:
-                    self.layer.append(tf.compat.v1.nn.relu_layer(self.layer.__getitem__(i - 1), self.weights.__getitem__(i), self.biasses.__getitem__(i)))
+        csvPath = self.getPathForWeight(0)
+        while os.path.exists(csvPath):
+            self.weights.append(self.getTensorFromFile(csvPath))
+            csvPath = self.getPathForBias(i)
+            self.biasses.append(self.getTensorFromFile(csvPath))
             i += 1
+            csvPath = self.getPathForWeight(i)
+
+        self.xPlaceholder = tf.compat.v1.placeholder(tf.float32, [None, self.weights.__getitem__(0).shape[0]],
+                                                     name="input")
+
+        i = 0
+        weightsLength = self.weights.__len__() - 1
+        while i < weightsLength:
+            if self.hiddenActivation == "sigmoid":
+                self.layer.append(self.getSigmoidForIndex(i))
+
+            elif self.hiddenActivation == "softmax":
+                self.layer.append(self.getSoftmaxForIndex(i))
+
+            else:
+                self.layer.append(self.getReluLayerForIndex(i))
+
+            i += 1
+
         if self.outputActivation == "relu":
-            self.logits = tf.nn.elu(tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)),
-                                            self.biasses.__getitem__(i)))
+            self.logits = self.getEluLayerForIndex(i)
+
         elif self.outputActivation == "softmax":
-            self.logits = tf.nn.softmax(
-                tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)),
-                       self.biasses.__getitem__(i)))
+            self.logits = self.getSoftmaxForIndex(i)
+
         else:
-            self.logits = tf.nn.sigmoid(
-                tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)),
-                       self.biasses.__getitem__(i)))
+            self.logits = self.getSigmoidForIndex(i)
+
 
