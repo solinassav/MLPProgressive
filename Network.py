@@ -9,18 +9,22 @@ import numpy as np
 class Network(object):
 
 
-    def __init__(self, jsonStructureDir, x = [], y = [],  XStandAlone = [],YStandAlone = []):
+    def __init__(self, jsonStructureDir, x = [], y = [],  XStandAlone = [],YStandAlone = [], rebuild = False):
+        self.rebuild = rebuild
         self.getJsonData(jsonStructureDir)
-        self.processDimensions(x,y,XStandAlone,YStandAlone)
-        self.buildNetwork()
+        if(self.rebuild):
+            self.buildFromRepository()
+        else:
+            self.processDimensions(x, y, XStandAlone, YStandAlone)
+            self.trainableVar = []
+            self.buildNetwork()
 
 
     def processDimensions(self,x,y,X,Y):
         self.xInput = x
         self.yInput = y
         if x == []:
-            self.xInput, self.xTest, self.yInput, self.yTest = train_test_split(X, Y, test_size=self.testSize,
-                                                                      random_state=self.randomState)
+            self.xInput, self.xTest, self.yInput, self.yTest = train_test_split(X, Y, test_size=self.testSize, random_state=self.randomState)
             self.yTest = self.label_encoding(self.yTest)
         self.yInput = self.label_encoding(self.yInput)
         if (len(self.yInput.shape) > 1):
@@ -37,9 +41,7 @@ class Network(object):
     def buildNetwork (self):
         tf.reset_default_graph()
         self.sess = tf.Session()
-        self.trainableVar = []
-        # TODO self.trainableVar deve diventare un dizionario in cui la chiave è il numero del layer
-        self.trainableVar.append(tf.trainable_variables())
+        self.unfreezAllTrainableVar()
         self.xPlaceholder, self.yPlaceholder, self.logits, self.cost = self.buildLayer(self.nOutputDim, self.nLayer, self.hiddenActivation, self.outputActivation)
         self.trainableVar = tf.trainable_variables()
         if self.nameOptimizer == "AdamOptimizer" or self.nameOptimizer == "":
@@ -86,11 +88,11 @@ class Network(object):
             hiddenActivationFunction = tf.nn.softmax
         else :
             hiddenActivationFunction = tf.nn.elu
-        self.layer.insert(0, fully_connected(xPlaceholder, self.nHidden.__getitem__(0), activation_fn=hiddenActivationFunction, weights_initializer=initializer))
+        self.layer.insert(0, fully_connected(xPlaceholder, self.nHidden.__getitem__(0), activation_fn=hiddenActivationFunction, weights_initializer=initializer, biases_initializer= initializer))
         print("layer: 1, numero_nodi: " + str(self.nHidden.__getitem__(0)))
         for i in range(1, nLayer):
             print("layer: " + str(i + 1) + ", numero_nodi: " + str(self.nHidden.__getitem__(i)))
-            self.layer.insert(i, fully_connected(self.layer.__getitem__(i - 1), self.nHidden.__getitem__(i), activation_fn=hiddenActivationFunction, weights_initializer=initializer))
+            self.layer.insert(i, fully_connected(self.layer.__getitem__(i - 1), self.nHidden.__getitem__(i), activation_fn=hiddenActivationFunction, weights_initializer=initializer, biases_initializer= initializer))
         print(tf.trainable_variables())
         if outputActivation == "relu":
             outputActivationFunction = tf.nn.elu
@@ -99,7 +101,6 @@ class Network(object):
         if outputActivation == "sigmoid" or outputActivation == "":
             outputActivationFunction = tf.nn.sigmoid
         logits = fully_connected(self.layer.__getitem__(nLayer - 1), self.nOutputDim, activation_fn=outputActivationFunction, weights_initializer=initializer)
-
         loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=yPlaceholder, logits=logits)
         cost = tf.reduce_mean(loss)
         return (xPlaceholder, yPlaceholder, logits, cost)
@@ -111,10 +112,10 @@ class Network(object):
 
 
     def predict(self, xTest = []):
+        pred = []
         if xTest == [] :
             xTest = self.xTest
-        pred = self.sess.run([self.logits],
-                             feed_dict={self.xPlaceholder: xTest})[0]
+        pred = self.sess.run([self.logits], feed_dict={self.xPlaceholder: xTest})[0]
         return pred
 
 
@@ -173,19 +174,91 @@ class Network(object):
         return oneHot.transform(array.reshape(-1, 1)).toarray()
 
 
+    def weight(self,x):
+        return 2*x
+
+
+    def bias(self,x):
+        return 2*x +1
+
+
     def freezTrainableVar(self, layer):
-        # TODO Questo metodo freeza un layer, rimuovendo pesi e bias dalle variabiali allenabili
-        # ci si riferirà alle variabili tramite il numero del layer (crescente dall'input all'output)
-        pass
+        self.trainableVar.remove(tf.trainable_variables().__getitem__(self.weight(layer)))
+        self.trainableVar.remove(tf.trainable_variables().__getitem__(self.bias(layer)))
 
 
-    def unfreezTrainableVar(self):
-        # TODO Riaggiunge a self.trainableVar i pesi e i bias
-        pass
+    def unfreezAllTrainableVar(self):
+        self.trainableVar[:] = []
+        for trainableVar in tf.trainable_variables():
+            self.trainableVar.append(trainableVar)
 
 
-    def saveNetwork(self,folder = "\\netTest_2"):
-        # TODO Fare in modo che il salvataggio avvenga davvero
+    def unfreezTrainableVar(self,layer):
+        self.trainableVar.append(tf.trainable_variables().__getitem__(self.weight(layer)))
+        self.trainableVar.append(tf.trainable_variables().__getitem__(self.bias(layer)))
+
+
+    def saveNetwork(self):
         print(tf.trainable_variables())
-        for trainableVar in self.trainableVar:
-            print(self.sess.run( trainableVar))
+        i = 0
+        directory = "Networks/" + str(self.networkName) + "/WB"
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        for trainableVar in tf.trainable_variables():
+            if(i%2==0):
+                np.savetxt(directory + '/W'+str(i//2)+'.csv', self.sess.run( trainableVar), delimiter=",")
+                #self.sess.run( trainableVar).tofile('W'+str(i//2)+'.csv',sep=',')
+            else:
+                np.savetxt(directory + '/B'+str(i//2)+'.csv', self.sess.run( trainableVar), delimiter=",")
+            i+=1
+
+
+    def buildFromRepository(self):
+        self.weights = []
+        self.biasses = []
+        self.layer = []
+        self.sess = tf.Session()
+        i = 0
+        directory = "Networks/" + str(self.networkName) + "/WB" + "/W" + str(i) + ".csv"
+        while os.path.exists(directory):
+            self.weights.append(tf.convert_to_tensor(np.loadtxt(open(directory, "rb"), delimiter=","), dtype=tf.float32))
+            directory = "Networks/" + str(self.networkName) + "/WB" + "/B" + str(i) + ".csv"
+            self.biasses.append(tf.convert_to_tensor(np.loadtxt(open(directory, "rb"), delimiter=","), dtype=tf.float32))
+            i += 1
+            directory = "Networks/" + str(self.networkName) + "/WB" + "/W" + str(i) + ".csv"
+
+        self.xPlaceholder = tf.compat.v1.placeholder(tf.float32, [None, self.weights.__getitem__(0).shape[0]], name="input")
+        i = 0
+        while i < self.weights.__len__() - 1:
+            if self.hiddenActivation == "sigmoid":
+                if i == 0:
+                    self.layer.append(tf.nn.sigmoid(
+                        tf.math.add(tf.matmul(self.xPlaceholder, self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
+                else:
+                    self.layer.append(tf.nn.sigmoid(
+                        tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
+            elif self.hiddenActivation == "softmax":
+                if i == 0:
+                    self.layer.append(tf.nn.softmax(
+                        tf.math.add(tf.matmul(self.xPlaceholder, self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
+                else:
+                    self.layer.append(tf.nn.softmax(
+                        tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)), self.biasses.__getitem__(i))))
+            else:
+                if i == 0:
+                    self.layer.append(tf.compat.v1.nn.relu_layer(self.xPlaceholder,self.weights.__getitem__(i),self.biasses.__getitem__(i)))
+                else:
+                    self.layer.append(tf.compat.v1.nn.relu_layer(self.layer.__getitem__(i - 1), self.weights.__getitem__(i), self.biasses.__getitem__(i)))
+            i += 1
+        if self.outputActivation == "relu":
+            self.logits = tf.nn.elu(tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)),
+                                            self.biasses.__getitem__(i)))
+        elif self.outputActivation == "softmax":
+            self.logits = tf.nn.softmax(
+                tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)),
+                       self.biasses.__getitem__(i)))
+        else:
+            self.logits = tf.nn.sigmoid(
+                tf.math.add(tf.matmul(self.layer.__getitem__(i - 1), self.weights.__getitem__(i)),
+                       self.biasses.__getitem__(i)))
+

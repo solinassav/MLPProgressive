@@ -6,13 +6,13 @@ import numpy as np
 class Trainer(object):
 
     def __init__(self, jsonTrainDir= '', jsonTrainProgDir = ''):
-        self.getJsonData(jsonTrainDir)
+        self.getJsonData(jsonTrainDir, jsonTrainProgDir)
 
 
     def getJsonData(self,jsonTrainDir, jsonTrainProgDir = ''):
         self.trainPlane = []
         if ( jsonTrainProgDir !='' ):
-            with open(jsonTrainDir, "r") as file:
+            with open(jsonTrainProgDir, "r") as file:
                 netData = file.read().replace("\n", "")
             netDataDict = json.loads(netData)
             self.trainPlane =  netDataDict["train_plane"]
@@ -45,12 +45,11 @@ class Trainer(object):
 
     def progressiveTrain(self,net):
         for train in self.trainPlane:
-            net.unfreezTrainableVar();
+            net.unfreezAllTrainableVar()
             for layer in train["freez_layers"]:
                 net.freezTrainableVar(layer)
             Network.train(net,nIters=train["n_iters"])
-        predProb = net.predict(self.xTest)
-        yHat = np.where(predProb < 0.5, 0, 1)
+        self.predProb = net.predict(self.xTest)
+        yHat = np.where(self.predProb < 0.5, 0, 1)
         acc = net.acc(yHat, net.label_encoding(self.yTest))
         print("Test Accuracy %.2f" % acc)
-        pass

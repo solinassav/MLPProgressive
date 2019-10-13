@@ -1,3 +1,10 @@
+import numpy as np
+from sklearn.datasets import load_iris
+from Network import Network
+import os
+from Trainer import Trainer
+
+
 #TODO: leggere note per il professore
 #As-Is:
     #Ogni uscita corrisponde a un label, le uscite sono poste a 1 se la probabilità per quel label è maggiore di 0.5, a 0 diversamente.
@@ -14,14 +21,6 @@
     # all'utente la possibilità di gestire la classificazione ignorando questi ponti
 
 
-
-import numpy as np
-from sklearn.datasets import load_iris
-from Network import Network
-import os
-from Trainer import Trainer
-
-
 ## prendo un dataset di test dalla repository di sklearn
 np.random.seed(0)
 X, Y = load_iris(10000)
@@ -31,7 +30,7 @@ X, Y = load_iris(10000)
 ROOT_DIR = os.path.abspath(os.curdir)
 jsonStructureDir = ROOT_DIR + "\structure.txt"
 jsonTrainDir = ROOT_DIR + "\\train.txt"
-jsonProgressiveTrainDir = ROOT_DIR + "\\train.txt"
+jsonProgressiveTrainDir = ROOT_DIR + "\\progressiveTrain.txt"
 
 
 # esempio di test: classe Network stand-alone effettua solo un training di tutta la reta secondo le informazioni contenute nel json "structure.txt"
@@ -48,5 +47,26 @@ trainer = Trainer(jsonTrainDir)
 xTrain, xTest, yTrain, yTest = trainer.split(X = X, Y = Y)
 netTest_2 = Network(jsonStructureDir, x=xTrain, y=yTrain)
 trainer.simpleTrain(netTest_2)
-netTest_2.saveNetwork(ROOT_DIR + "\\netTest_2")
+
+
+# esempio di test classe Trainer + Network con allenamento progressivo
+trainer = Trainer(jsonTrainDir, jsonProgressiveTrainDir)
+xTrain, xTest, yTrain, yTest = trainer.split(X = X, Y = Y)
+netTest_3 = Network(jsonStructureDir, x=xTrain, y=yTrain)
+trainer.progressiveTrain(netTest_3)
+netTest_3.saveNetwork()
+
+
+# Uso della rete salvata, per usare una rete salvata basta mettere il suo nome nel file jsonStructureDir e istanzianziarla con rebuild
+netTest_4=Network(jsonStructureDir,rebuild=True)
+predProb = netTest_4.predict(xTest)
+yHat = np.where(predProb < 0.5, 0, 1)
+acc = netTest_1.acc(yHat)
+print("Test Accuracy %.2f" % acc)
+
+
+
+
+
+
 
