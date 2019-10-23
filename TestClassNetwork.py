@@ -23,8 +23,7 @@ from Trainer import Trainer
 
 ## prendo un dataset di test dalla repository di sklearn
 np.random.seed(0)
-X, Y = load_iris(10000)
-
+data, labels = load_iris(10000)
 
 ## Ricordare di cambiare i path
 ROOT_DIR = os.path.abspath(os.curdir)
@@ -34,24 +33,25 @@ jsonProgressiveTrainDir = ROOT_DIR + "\\progressiveTrain.txt"
 
 
 # esempio di test: classe Network stand-alone effettua solo un training di tutta la reta secondo le informazioni contenute nel json "structure.txt"
-netTest_1 = Network(jsonStructureDir, XStandAlone= X, YStandAlone = Y)
+netTest_1 = Network(jsonStructureDir, XStandAlone= data, YStandAlone = labels)
 Network.train(netTest_1)
 predProb = netTest_1.predict()
 yHat = np.where(predProb < 0.5, 0, 1)
-acc = netTest_1.acc(yHat)
+acc, trueVector = netTest_1.acc(yHat)
 print("Test Accuracy %.2f" % acc)
 
 
 # esempio di test classe Trainer + Network (simple train) (file "structure.txt" +train.txt)
 trainer = Trainer(jsonTrainDir)
-xTrain, xTest, yTrain, yTest = trainer.split(X = X, Y = Y)
+xTrain, xTest, yTrain, yTest = trainer.split(X = data, Y = labels)
 netTest_2 = Network(jsonStructureDir, x=xTrain, y=yTrain)
 trainer.simpleTrain(netTest_2)
 
 
+
 # esempio di test classe Trainer + Network con allenamento progressivo
 trainer = Trainer(jsonTrainDir, jsonProgressiveTrainDir)
-xTrain, xTest, yTrain, yTest = trainer.split(X = X, Y = Y)
+xTrain, xTest, yTrain, yTest = trainer.split(X = data, Y = labels)
 netTest_3 = Network(jsonStructureDir, x=xTrain, y=yTrain)
 trainer.progressiveTrain(netTest_3)
 netTest_3.saveNetwork()
@@ -61,7 +61,7 @@ netTest_3.saveNetwork()
 netTest_4=Network(jsonStructureDir,rebuild=True)
 predProb = netTest_4.predict(xTest)
 yHat = np.where(predProb < 0.5, 0, 1)
-acc = netTest_1.acc(yHat)
+acc, trueVector= netTest_4.acc(yHat,yTest)
 print("Test Accuracy %.2f" % acc)
 
 

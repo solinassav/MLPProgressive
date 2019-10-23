@@ -6,9 +6,9 @@
 9,7,5
 ],
 "learning_rate":1e-2,
-"n_iters":10,
-"hidden_activation":"relu",
-"output_activation":"sigmoid",
+"n_iters":300,
+"hidden_activation":"sigmoid",
+"output_activation":"softmax",
 "optimizer":"AdamOptimizer"
 }
 

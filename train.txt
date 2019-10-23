@@ -3,5 +3,7 @@
 "network_name":"Iris",
 "random_state":73,
 "learning_rate":1e-2,
-"n_iters":10
+"d_name":"Iris",
+"n_iters":3000,
+"path": "None"
 }

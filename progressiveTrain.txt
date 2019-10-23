@@ -2,20 +2,18 @@
 "test_size":0.25,
 "network_name":"Iris",
 "random_state":73,
-"learning_rate":1e-3,
+"learning_rate":1e-2,
+"d_name":"Iris",
+"path": "None",
 "train_plane" : [
                     { "n_iters":1000,
-                      "freez_layers" : []
+                      "freez_layers" : [0,1]
                     },
                     { "n_iters":1000,
                       "freez_layers" : [0]
                     },
                     { "n_iters":1000,
-                      "freez_layers" : [0,1]
-                    },
-                    { "n_iters":1000,
                       "freez_layers" : []
                     }
-
                 ]
 }

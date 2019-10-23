@@ -5,6 +5,7 @@ from sklearn.preprocessing import OneHotEncoder
 from tensorflow.contrib.layers import fully_connected
 import json
 import numpy as np
+import shutil
 
 class Network(object):
 
@@ -147,8 +148,11 @@ class Network(object):
 
 
     def acc(self, yHat, yTest = []):
+        trueVector = []
         if yTest == []:
             yTest = self.yTest
+        else:
+            yTest = self.label_encoding(yTest)
         acc = 0
         if (len(yTest.shape) > 1):
             for i in range(0, yHat.shape[0]):
@@ -157,11 +161,14 @@ class Network(object):
                 for j in range(1, yHat.shape[1]):
                     match = (yHat[i][j] == yTest[i][j]) & match
                 if (match):
+                    trueVector.append(True)
                     acc += 1
+                else:
+                    trueVector.append(False)
             acc = acc / yHat.shape[0]
         else:
             acc = np.sum(yTest.reshape(-1, 1) == yHat) / len(yTest)
-        return acc
+        return acc, trueVector
 
 
     def getTrainableVar(self):
@@ -202,6 +209,7 @@ class Network(object):
         print(tf.trainable_variables())
         i = 0
         directory = "Networks/" + str(self.networkName) + "/WB"
+        shutil.rmtree(directory)
         if not os.path.exists(directory):
             os.makedirs(directory)
         for trainableVar in tf.trainable_variables():
