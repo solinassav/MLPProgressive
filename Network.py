@@ -11,6 +11,7 @@ class Network(object):
 
 
     def __init__(self, jsonStructureDir, x = [], y = [],  XStandAlone = [],YStandAlone = [], rebuild = False):
+        self.rootDir = jsonStructureDir.replace("\config\\structure.txt"," ")
         self.rebuild = rebuild
         self.getJsonData(jsonStructureDir)
         if(self.rebuild):
@@ -94,7 +95,6 @@ class Network(object):
         for i in range(1, nLayer):
             print("layer: " + str(i + 1) + ", numero_nodi: " + str(self.nHidden.__getitem__(i)))
             self.layer.insert(i, fully_connected(self.layer.__getitem__(i - 1), self.nHidden.__getitem__(i), activation_fn=hiddenActivationFunction, weights_initializer=initializer, biases_initializer= initializer))
-        print(tf.trainable_variables())
         if outputActivation == "relu":
             outputActivationFunction = tf.nn.elu
         if outputActivation == "softmax":
@@ -168,7 +168,7 @@ class Network(object):
             acc = acc / yHat.shape[0]
         else:
             acc = np.sum(yTest.reshape(-1, 1) == yHat) / len(yTest)
-        return acc, trueVector
+        return acc, trueVector, yTest
 
 
     def getTrainableVar(self):
@@ -179,7 +179,6 @@ class Network(object):
         oneHot = OneHotEncoder(categories='auto')
         oneHot.fit_transform(array.reshape(-1, 1))
         return oneHot.transform(array.reshape(-1, 1)).toarray()
-
 
     def weight(self,x):
         return 2*x
@@ -209,8 +208,10 @@ class Network(object):
         print(tf.trainable_variables())
         i = 0
         directory = "Networks/" + str(self.networkName) + "/WB"
-        shutil.rmtree(directory)
-        if not os.path.exists(directory):
+        if  os.path.exists(directory):
+            shutil.rmtree(directory)
+            os.makedirs(directory)
+        else:
             os.makedirs(directory)
         for trainableVar in tf.trainable_variables():
             if(i%2==0):
