@@ -1,9 +1,9 @@
 {
 "test_size":0.25,
-"network_name":"Iris",
+"network_name":"Breast-Cancer",
 "random_state":73,
 "learning_rate":1e-2,
-"d_name":"Iris",
-"n_iters":3000,
+"d_name":"BreastCancer",
+"n_iters":100,
 "path": "None"
 }
