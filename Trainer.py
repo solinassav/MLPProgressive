@@ -6,7 +6,7 @@ import shutil
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder
 
-from Network import Network
+from MLP import Network
 import numpy as np
 
 
@@ -55,8 +55,6 @@ class Trainer(object):
         if (nConvergence == 0):
             nConvergence = self.nIters
         Network.train(net, nIters=self.nIters, nConvergence=nConvergence)
-        self.predProb = net.predict(self.xTest)
-        self.yHat = np.where(self.predProb < 0.5, 0, 1)
         return self.summary(net)
 
     def progressiveTrain(self, net = None):
@@ -67,24 +65,29 @@ class Trainer(object):
             for layer in train["freez_layers"]:
                 net.freezTrainableVar(layer)
             Network.train(net, nIters=train["n_iters"])
-        self.predProb = net.predict(self.xTest)
-        self.yHat = np.where(self.predProb < 0.5, 0, 1)
+
         return self.summary(net)
 
-    def statistic(self, net, yHat, xTest):
+    def statistic(self,pred, net, yHat, xTest, positive = []):
         if yHat == []:
             yHat = self.yHat
-        self.acc, self.trueVector, self.oneHotEncodedYTest = net.acc(yHat, self.yTest)
-        self.phiDeltaM = self.computePhiDelta(self.trueVector, yHat, xTest, self.oneHotEncodedYTest)
+        self.phiDeltaM = []
+        self.acc, self.trueVector, self.oneHotEncodedYTest = net.acc(yHat, self.yTest, positive)
+        self.phiDeltaM.append(self.computePhiDelta(self.trueVector, yHat, xTest, self.oneHotEncodedYTest))
+        for layerOutput in pred:
+            self.phiDeltaM.append(self.computePhiDelta(self.trueVector, yHat, layerOutput, self.oneHotEncodedYTest))
         print("Test Accuracy %.2f" % self.acc)
         return self.acc, self.phiDeltaM
 
     def summary(self, net, yHat=[], xTest=[]):
+        self.pred = net.getAll(self.xTest)
+        self.pred_array = self.pred[self.pred.__len__()-1]
+        self.yHat = np.where(self.pred.pop(self.pred.__len__()-1) < 0.5, 0, 1)
         if yHat == []:
             yHat = self.yHat
         if xTest == []:
             xTest = self.xTest
-        acc, phiDeltaM = self.statistic(net, yHat, self.xTest.transpose())
+        acc, phiDeltaM = self.statistic(self.pred, net, yHat, self.xTest.transpose())
         self.summaryToPDf(net, acc, phiDeltaM)
         return self.acc, phiDeltaM
 
@@ -94,6 +97,9 @@ class Trainer(object):
         phiM = []
         deltaM = []
         for xT in xTest:
+            xT -= xT.min()
+            if(xT.max()!=0):
+                xT /= xT.max()
             isOneLabel = (len(yHat.transpose()) == 2)
             phi = []
             delta = []
@@ -111,34 +117,24 @@ class Trainer(object):
                             yT = yTest.transpose().__getitem__(j)
                         else:
                             yT = yTest
-                        if (yH.__getitem__(i) == yT.__getitem__(i)):
-                            if (yH.__getitem__(i) == 1):
-                                TP += xT.__getitem__(i) / max(xT)
-                                P += 1
-                            else:
-                                TN += 1 - xT.__getitem__(i) / max(xT)
-                                N += 1
+                        if(yH.__getitem__(i)):
+                            P+=1
+                            if(yT.__getitem__(i)):
+                                TP += xT.__getitem__(i)
                         else:
-                            if (yH.__getitem__(i) == 1):
-                                P += 1
-                                FP += 1
-                            else:
-                                N += 1
-                                FN += 1
-                    if (N == 0):
-                        TN = 0
-                        FN = 0
-                    else:
-                        TN = TN / N
-                        FN = FN / N
+                            N+=1
+                            if (not yT.__getitem__(i)):
+                                TN += 1- xT.__getitem__(i)
                     if (P == 0):
                         TP = 0
-                        FP = 0
                     else:
                         TP = TP / P
-                        FP = FP / P
-                    phi.append(TP + FP - 1)
-                    delta.append(TP - FP)
+                    if (N == 0):
+                        TN = 0
+                    else:
+                        TN = TN / N
+                    delta.append(TP + TN - 1)
+                    phi.append(TP - TN)
                     j += 1
                 else:
                     j+=1
@@ -358,60 +354,67 @@ class Trainer(object):
             "outcome towards the correct class (Oracle), in the same way if the point tends towards (0, -1)" +
             " the feature represented tends to shift the outcome to the wrong class (always wrong)." +
             "In this way, we can say that we have a better classifier when the value of $\delta$ is closer to the unit.\\\\")
-        i = 1
-        for graph in phiDeltaM:
-            file.write("\section{Label " + str(i) + "}")
-            i += 1
-            file.write("\\begin{tikzpicture}" +
-                       "\\begin{axis}[" +
-                       "\taxis lines = left,\n" +
-                       "\txlabel = $\phi$,\n" +
-                       "\tylabel = {$\delta$},\n" +
-                       "\tlegend pos = outer north east\n" +
-                       "]\n" +
-                       "\\addplot [\n" +
-                       "\tdomain=0:1,\n" +
-                       "\tsamples=100,\n" +
-                       "\tcolor=black,\n" +
-                       "\tforget plot,\n" +
-                       "]\n" +
-                       "{-x +1 };\n" +
-                       "\\addplot [\n" +
-                       "\tdomain=-1:0,\n" +
-                       "\tsamples=100,\n"
-                       "\tcolor=black,\n" +
-                       "\tforget plot,\n" +
-                       "]\n" +
-                       "{-x - 1 };\n" +
-                       "\\addplot [\n" +
-                       "\tsamples=100,\n" +
-                       "\tdomain=-1:0,\n" +
-                       "\tcolor=black,\n" +
-                       "\tforget plot,\n" +
-                       "]\n" +
-                       "{ x + 1 };\n" +
-                       "\\addplot [\n" +
-                       "\tdomain=0:1,\n" +
-                       "\tsamples=100,\n" +
-                       "\tcolor=black,\n" +
-                       "\tforget plot,\n" +
-                       "]\n" +
-                       "{x - 1 };\n")
-            j = 1
-            for feature in graph:
-                r = random.random()
-                g = random.random()
-                b = random.random()
-                file.write("\\addplot[only marks, color ={rgb:red," + str(r) + ";green," + str(g) + ";blue," + str(
-                    b) + "}] table\n" +
-                           "{\n" + str(feature.__getitem__(0)) + " " + str(feature.__getitem__(1)) +
-                           "\n" +
-                           "};\n" +
-                           "\\addlegendentry\n" +
-                           "{$Feature\t" + str(j) + "$}\n")
-                j += 1
-            file.write("\end{axis}\n" +
-                       "\end{tikzpicture}\\\\\n")
+
+        n_l = 0
+        for layer in phiDeltaM:
+            i = 1
+            for graph in layer:
+                if(n_l == 0):
+                    file.write("\section{Label " + str(i) + ", Input}")
+                else:
+                    file.write("\section{Label " + str(i) + ", Hidden Layer " + str(n_l) + "}")
+                i += 1
+                file.write("\\begin{tikzpicture}" +
+                           "\\begin{axis}[" +
+                           "\taxis lines = left,\n" +
+                           "\txlabel = $\phi$,\n" +
+                           "\tylabel = {$\delta$},\n" +
+                           "\tlegend pos = outer north east\n" +
+                           "]\n" +
+                           "\\addplot [\n" +
+                           "\tdomain=0:1,\n" +
+                           "\tsamples=100,\n" +
+                           "\tcolor=black,\n" +
+                           "\tforget plot,\n" +
+                           "]\n" +
+                           "{-x +1 };\n" +
+                           "\\addplot [\n" +
+                           "\tdomain=-1:0,\n" +
+                           "\tsamples=100,\n"
+                           "\tcolor=black,\n" +
+                           "\tforget plot,\n" +
+                           "]\n" +
+                           "{-x - 1 };\n" +
+                           "\\addplot [\n" +
+                           "\tsamples=100,\n" +
+                           "\tdomain=-1:0,\n" +
+                           "\tcolor=black,\n" +
+                           "\tforget plot,\n" +
+                           "]\n" +
+                           "{ x + 1 };\n" +
+                           "\\addplot [\n" +
+                           "\tdomain=0:1,\n" +
+                           "\tsamples=100,\n" +
+                           "\tcolor=black,\n" +
+                           "\tforget plot,\n" +
+                           "]\n" +
+                           "{x - 1 };\n")
+                j = 1
+                for feature in graph:
+                    r = random.random()
+                    g = random.random()
+                    b = random.random()
+                    file.write("\\addplot[only marks, color ={rgb:red," + str(r) + ";green," + str(g) + ";blue," + str(
+                        b) + "}] table\n" +
+                               "{\n" + str(feature.__getitem__(0)) + " " + str(feature.__getitem__(1)) +
+                               "\n" +
+                               "};\n" +
+                               "\\addlegendentry\n" +
+                               "{$Feature\t" + str(j) + "$}\n")
+                    j += 1
+                file.write("\end{axis}\n" +
+                           "\end{tikzpicture}\\\\\n")
+            n_l += 1
         file.write("\end{document}\n")
         file.close()
         os.chdir(directory)
